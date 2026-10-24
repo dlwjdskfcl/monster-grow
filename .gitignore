@@ -1,0 +1,9 @@
+node_modules/
+dist/
+site/
+e2e-shots/
+.env*
+!.env.example
+*.log
+.clasp.json
+.clasprc.json

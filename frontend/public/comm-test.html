@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>통신 실험 · 몬스터 키우기</title>
+<style>body{font:15px/1.6 system-ui,sans-serif;background:#0c141c;color:#eef5f2;margin:0;padding:20px;max-width:720px}
+input,button{font:inherit;padding:8px 12px;border-radius:10px;border:1px solid #26394a;background:#16242f;color:inherit}input{width:100%;box-sizing:border-box}
+button{background:#5ee0a0;color:#062216;font-weight:700;cursor:pointer;margin-top:8px}pre{background:#16242f;padding:12px;border-radius:12px;white-space:pre-wrap;font-size:12.5px}
+td,th{padding:4px 8px;border-bottom:1px solid #26394a;text-align:left;font-size:13px}</style></head>
+<body>
+<h2>GAS 통신 실험</h2>
+<p>GitHub Pages 에서 새 GAS 웹 앱으로 요청을 보내 <b>응답 본문을 읽을 수 있는지</b>, 오류·지연이 어떤지 확인해요. 게임 데이터는 바꾸지 않아요 (hello · 잘못된 토큰 · 잘못된 JSON 만 보냄).</p>
+<label>GAS 웹 앱 주소 (…/exec)<input id="u" placeholder="https://script.google.com/macros/s/…/exec"></label>
+<button id="go">실험 시작 (5회)</button>
+<table id="t"></table><pre id="o"></pre>
+<script>
+const $ = (s) => document.querySelector(s);
+const uuid = () => crypto.randomUUID();
+const send = async (url, body) => {
+  const t0 = performance.now();
+  try {
+    const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body, redirect: 'follow', cache: 'no-store' });
+    const text = await r.text();
+    let j = null; try { j = JSON.parse(text); } catch {}
+    return { ms: Math.round(performance.now() - t0), status: r.status, redirected: r.redirected, readable: !!j, code: j && j.code, reason: j && j.error && j.error.reason };
+  } catch (e) { return { ms: Math.round(performance.now() - t0), error: String(e) }; }
+};
+$('#go').onclick = async () => {
+  const url = $('#u').value.trim();
+  const rows = [];
+  const base = { clientVersion: '0.1.0', schemaVersion: 1 };
+  const cases = [
+    ['hello', () => JSON.stringify({ ...base, requestId: uuid(), action: 'hello' })],
+    ['hello', () => JSON.stringify({ ...base, requestId: uuid(), action: 'hello' })],
+    ['잘못된 토큰 sync', () => JSON.stringify({ ...base, requestId: uuid(), action: 'sync', token: 'x.y' })],
+    ['잘못된 JSON', () => '{oops'],
+    ['hello', () => JSON.stringify({ ...base, requestId: uuid(), action: 'hello' })]
+  ];
+  $('#t').innerHTML = '<tr><th>요청</th><th>ms</th><th>HTTP</th><th>본문 읽힘</th><th>code</th></tr>';
+  for (const [name, body] of cases) {
+    const r = await send(url, body());
+    rows.push({ name, ...r });
+    $('#t').insertAdjacentHTML('beforeend', `<tr><td>${name}</td><td>${r.ms}</td><td>${r.status || '-'}</td><td>${r.readable ? '예' : '아니오'}</td><td>${r.code || r.error || ''} ${r.reason || ''}</td></tr>`);
+  }
+  const ok = rows.every((r) => r.readable);
+  $('#o').textContent = (ok ? '✅ 모든 응답의 본문을 읽었어요. 이 주소로 게임을 빌드해도 돼요.' : '❌ 일부 응답을 읽지 못했어요. 배포 액세스가 "모든 사용자"인지, 주소가 /exec 로 끝나는지 확인하세요.') +
+    '\n브라우저: ' + navigator.userAgent + '\n결과(복사해서 docs/05_통신실험_결과.md 에 기록):\n' + JSON.stringify(rows, null, 1);
+};
+</script></body></html>

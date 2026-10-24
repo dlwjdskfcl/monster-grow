@@ -1,0 +1,30 @@
+{
+  "name": "monster-grow",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "몬스터 키우기 — 오리지널 방치형 웹게임 (GitHub Pages + Google Apps Script + Google Sheets)",
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "vite",
+    "dev:server": "node scripts/gas-local-server.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "build": "vite build",
+    "build:gas": "node scripts/build-gas.mjs",
+    "sim": "node scripts/run-ts.mjs scripts/balance-sim.ts",
+    "scan": "node scripts/secret-scan.mjs dist backend",
+    "e2e": "node scripts/e2e.mjs",
+    "check": "npm run typecheck && npm run test && npm run build:gas && npm run build && npm run scan"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.5",
+    "typescript": "5.8.3",
+    "vite": "6.3.5",
+    "vitest": "3.2.4",
+    "playwright": "1.53.2"
+  }
+}

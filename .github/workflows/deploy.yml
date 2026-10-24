@@ -67,7 +67,8 @@ jobs:
           VITE_ENV: prod
           VITE_API_URL: ${{ vars.API_URL_PROD }}
         run: |
-          test -n "$VITE_API_URL" || (echo "API_URL_PROD 변수가 없어요" && exit 1)
+          # GAS 주소가 아직 없으면 경고만 하고 빌드 (화면은 뜨고 '연결할 수 없어요'가 나옴)
+          if [ -z "$VITE_API_URL" ]; then echo "::warning::API_URL_PROD 변수가 없어요 — 서버 없이 화면만 배포"; export VITE_API_URL=https://example.invalid/; fi
           npm run build
           mv dist site
       - name: 스테이징 빌드 (/monster-grow/staging/)

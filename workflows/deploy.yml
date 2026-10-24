@@ -1,0 +1,106 @@
+# 몬스터 키우기 — 검사 후 GitHub Pages 배포 (신규 저장소 전용)
+# 저장소 Settings → Pages → Source: GitHub Actions
+# Settings → Secrets and variables → Actions → Variables 에 공개 값 등록:
+#   API_URL_PROD    = 운영 GAS 웹 앱 주소 (…/exec)
+#   API_URL_STAGING = 스테이징 GAS 웹 앱 주소 (없으면 스테이징 빌드 생략)
+#   (주소는 공개 값. 비밀 값은 여기 넣지 않음 — 서버 비밀은 GAS 스크립트 속성에만)
+name: deploy
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20.19.0
+          cache: npm
+      - run: npm ci
+      - name: 타입 검사
+        run: npm run typecheck
+      - name: 단위·서버 테스트
+        run: npm test
+      - name: GameCore.gs 가 shared/ 와 같은지 (다르면 npm run build:gas 후 커밋)
+        run: |
+          npm run build:gas
+          git diff --exit-code backend/GameCore.gs
+      - name: 브라우저 테스트
+        run: |
+          npx playwright install --with-deps chromium
+          npm run e2e
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: e2e-shots
+          path: e2e-shots
+          retention-days: 7
+
+  build:
+    needs: check
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20.19.0
+          cache: npm
+      - run: npm ci
+      - name: 운영 빌드 (/monster-grow/)
+        env:
+          VITE_BASE: /${{ github.event.repository.name }}/
+          VITE_ENV: prod
+          VITE_API_URL: ${{ vars.API_URL_PROD }}
+        run: |
+          test -n "$VITE_API_URL" || (echo "API_URL_PROD 변수가 없어요" && exit 1)
+          npm run build
+          mv dist site
+      - name: 스테이징 빌드 (/monster-grow/staging/)
+        if: vars.API_URL_STAGING != ''
+        env:
+          VITE_BASE: /${{ github.event.repository.name }}/staging/
+          VITE_ENV: staging
+          VITE_API_URL: ${{ vars.API_URL_STAGING }}
+        run: |
+          npm run build
+          mv dist site/staging
+          printf 'User-agent: *\nDisallow: /%s/staging/\n' "${{ github.event.repository.name }}" > site/robots.txt
+      - name: 비밀 값 검사
+        run: node scripts/secret-scan.mjs site
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.d.outputs.page_url }}
+    steps:
+      - id: d
+        uses: actions/deploy-pages@v4
+      - name: 배포 후 확인 (첫 화면·자산 경로)
+        run: |
+          sleep 20
+          URL="${{ steps.d.outputs.page_url }}"
+          curl -fsS "$URL" | grep -q '몬스터 키우기'
+          JS=$(curl -fsS "$URL" | grep -o 'assets/index-[^"]*\.js' | head -1)
+          curl -fsS -o /dev/null "$URL$JS"
+          curl -s -o /dev/null -w '%{http_code}' "${URL}no/such/page" | grep -q 404
+          echo "확인 완료: $URL"
